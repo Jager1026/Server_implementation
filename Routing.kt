@@ -89,7 +89,7 @@ fun Application.configureRouting() {
 
             val parameters:Parameters = call.receiveParameters()
 
-            val fileID = call.parameters["fileid"]
+            val fileID = call.parameters["fileID"]
 
             var contents = parameters["fileContents"]!!
 
@@ -115,6 +115,37 @@ fun Application.configureRouting() {
                 //Sends response to client if user already exists
                 call.respondText("Wrong File", contentType = ContentType.Text.Plain)
             }
+        }
+
+        get ("/file/{fileID}") {
+
+            val fileID = call.parameters["fileID"]
+
+            var client = KMongo.createClient() //get com.mongodb.MongoClient new instance
+            var database = client.getDatabase(imadDB) //normal java driver usage
+            var colFile = database.getCollection<File>() //KMongo extension method
+
+            val curFile: File? = colFile.findOne(File::_id eq fileID)
+
+            if(curFile != null){
+
+                call.respondText(curFile.content!!, contentType = ContentType.Text.Plain)
+                client.close()
+
+                //Sends user ID (API key) to client
+                //call.respondText(editFile._id!!, contentType = ContentType.Text.Plain)
+            }else
+            {
+                client.close()
+
+                //Sends response to client if user already exists
+                call.respondText("Wrong FileID", contentType = ContentType.Text.Plain)
+            }
+
+        }
+
+        get("/auth"){
+            
         }
 
 

@@ -24,13 +24,13 @@ fun Application.configureRouting() {
             val parameters: Parameters = call.receiveParameters()
 
             //Retrieves each argument of POST request to register new user
-            var name= parameters["user"]!!
-            var pass = parameters["password"]!!
+            val name= parameters["user"]!!
+            val pass = parameters["password"]!!
 
             //Objects to manage MongoDB database
-            var client = KMongo.createClient() //get com.mongodb.MongoClient new instance
-            var database = client.getDatabase(imadDB) //normal java driver usage
-            var colUser = database.getCollection<User>() //KMongo extension method
+            val client = KMongo.createClient() //get com.mongodb.MongoClient new instance
+            val database = client.getDatabase(imadDB) //normal java driver usage
+            val colUser = database.getCollection<User>() //KMongo extension method
 
             //Checks if user already exists
             val curUser: User? = colUser.findOne(User::name eq name)
@@ -58,18 +58,18 @@ fun Application.configureRouting() {
 
             val parameters:Parameters = call.receiveParameters()
 
-            var fileName = parameters["file"]!!
+            val fileName = parameters["file"]!!
 
-            var client = KMongo.createClient() //get com.mongodb.MongoClient new instance
-            var database = client.getDatabase(imadDB) //normal java driver usage
-            var colFile = database.getCollection<File>() //KMongo extension method
+            val client = KMongo.createClient() //get com.mongodb.MongoClient new instance
+            val database = client.getDatabase(imadDB) //normal java driver usage
+            val colFile = database.getCollection<File>() //KMongo extension method
 
             val curFile: File? = colFile.findOne(File::name eq fileName)
 
             if(curFile==null){
 
                 //Creates new User object and inserts it in database
-                val insertFile=File(fileName, content = "empty")
+                val insertFile=File(fileName, content = "")
                 colFile.insertOne(insertFile)
                 client.close()
 
@@ -85,17 +85,17 @@ fun Application.configureRouting() {
 
         }
 
-        put ("/file/{fileID}"){
+        put ("/file/{fileID}?auth={UserID}"){
 
             val parameters:Parameters = call.receiveParameters()
 
             val fileID = call.parameters["fileID"]
 
-            var contents = parameters["fileContents"]!!
+            val contents = parameters["fileContents"]!!
 
-            var client = KMongo.createClient() //get com.mongodb.MongoClient new instance
-            var database = client.getDatabase(imadDB) //normal java driver usage
-            var colFile = database.getCollection<File>() //KMongo extension method
+            val client = KMongo.createClient() //get com.mongodb.MongoClient new instance
+            val database = client.getDatabase(imadDB) //normal java driver usage
+            val colFile = database.getCollection<File>() //KMongo extension method
 
             val curFile: File? = colFile.findOne(File::_id eq fileID)
 
@@ -117,23 +117,24 @@ fun Application.configureRouting() {
             }
         }
 
-        get ("/file/{fileID}") {
+        get ("/file/{fileID}?auth={userID}") {
 
+            val userId = call.parameters["userID"]
             val fileID = call.parameters["fileID"]
 
-            var client = KMongo.createClient() //get com.mongodb.MongoClient new instance
-            var database = client.getDatabase(imadDB) //normal java driver usage
-            var colFile = database.getCollection<File>() //KMongo extension method
+            val client = KMongo.createClient() //get com.mongodb.MongoClient new instance
+            val database = client.getDatabase(imadDB) //normal java driver usage
+            val colFile = database.getCollection<File>() //KMongo extension method
+            val colUser = database.getCollection<User>() //KMongo extension method
 
             val curFile: File? = colFile.findOne(File::_id eq fileID)
+            val curUser: User? = colUser.findOne(User::_id eq fileID)
 
-            if(curFile != null){
+            if(curFile != null && curUser != null){
 
-                call.respondText(curFile.content!!, contentType = ContentType.Text.Plain)
+                call.respondText(curFile.content, contentType = ContentType.Text.Plain)
                 client.close()
 
-                //Sends user ID (API key) to client
-                //call.respondText(editFile._id!!, contentType = ContentType.Text.Plain)
             }else
             {
                 client.close()
@@ -144,8 +145,13 @@ fun Application.configureRouting() {
 
         }
 
-        get("/auth"){
-            
+        get("/files?auth={UserID}"){
+            val userId = call.parameters["UserID"]
+
+            val client = KMongo.createClient() //get com.mongodb.MongoClient new instance
+            val database = client.getDatabase(imadDB) //normal java driver usage
+            val colFile = database.getCollection<File>() //KMongo extension method
+
         }
 
 

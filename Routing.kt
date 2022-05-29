@@ -1,5 +1,6 @@
 package com.example.plugins
 
+import com.mongodb.client.FindIterable
 import io.ktor.server.routing.*
 import io.ktor.http.*
 import io.ktor.server.application.*
@@ -8,18 +9,19 @@ import io.ktor.server.request.*
 import org.litote.kmongo.*
 
 data class User(val name:String, val pass: String, val _id:String?=null)
-data class File(val name:String, val content:String, val _id:String?=null)
+data class File(val name:String, val content:String, val _id:String?=null, val owner:String?=null)
 
-val imadDB="imad-db-1-2022"
+const val imadDB="imad-db-1-2022"
 
 fun Application.configureRouting() {
 
     routing {
         get("/") {
-            call.respondText("Pagina principal del servidor")
+            call.respondText("pagina principal del servidor")
         }
 
         post("/create/user"){
+
             //Reads parameters from POST request
             val parameters: Parameters = call.receiveParameters()
 
@@ -40,6 +42,7 @@ fun Application.configureRouting() {
 
                 //Creates new User object and inserts it in database
                 val insertUser=User(name,pass)
+
                 colUser.insertOne(insertUser)
                 client.close()
 
@@ -54,10 +57,11 @@ fun Application.configureRouting() {
             }
         }
 
-        post("/create/file"){
+        post("/create/file?auth={UserID}"){
 
             val parameters:Parameters = call.receiveParameters()
 
+            val userID = call.parameters["UserID"]
             val fileName = parameters["file"]!!
 
             val client = KMongo.createClient() //get com.mongodb.MongoClient new instance
@@ -69,8 +73,9 @@ fun Application.configureRouting() {
             if(curFile==null){
 
                 //Creates new User object and inserts it in database
-                val insertFile=File(fileName, content = "")
+                val insertFile=File(fileName, content = "",owner = userID)
                 colFile.insertOne(insertFile)
+
                 client.close()
 
                 //Sends user ID (API key) to client
@@ -89,6 +94,7 @@ fun Application.configureRouting() {
 
             val parameters:Parameters = call.receiveParameters()
 
+            val userID = call.parameters["UserID"]
             val fileID = call.parameters["fileID"]
 
             val contents = parameters["fileContents"]!!
@@ -98,8 +104,9 @@ fun Application.configureRouting() {
             val colFile = database.getCollection<File>() //KMongo extension method
 
             val curFile: File? = colFile.findOne(File::_id eq fileID)
+            val curUser: File? = colFile.findOne(File::owner eq userID)
 
-            if(curFile != null){
+            if(curFile != null && curUser != null){
 
                 //Creates new File object
                 val editFile=File(fileID.toString(), contents)
@@ -125,10 +132,9 @@ fun Application.configureRouting() {
             val client = KMongo.createClient() //get com.mongodb.MongoClient new instance
             val database = client.getDatabase(imadDB) //normal java driver usage
             val colFile = database.getCollection<File>() //KMongo extension method
-            val colUser = database.getCollection<User>() //KMongo extension method
 
             val curFile: File? = colFile.findOne(File::_id eq fileID)
-            val curUser: User? = colUser.findOne(User::_id eq fileID)
+            val curUser: File? = colFile.findOne(File::owner eq userId)
 
             if(curFile != null && curUser != null){
 
@@ -146,14 +152,27 @@ fun Application.configureRouting() {
         }
 
         get("/files?auth={UserID}"){
+
             val userId = call.parameters["UserID"]
 
             val client = KMongo.createClient() //get com.mongodb.MongoClient new instance
             val database = client.getDatabase(imadDB) //normal java driver usage
             val colFile = database.getCollection<File>() //KMongo extension method
 
+            //val curFile: MutableList<File> = colFile.find(File::owner eq userId).toMutableList()
+            val curFile: Iterable<File> = colFile.find(File::owner eq userId).toMutableList()
+
+            if (curFile != null){
+
+                call.respondText(curFile.toString(), contentType = ContentType.Text.Plain)
+
+            }
+
+            else{
+                call.respondText("There arent files owned by this user", contentType = ContentType.Text.Plain)
+            }
+
         }
-
-
+        
     }
 }

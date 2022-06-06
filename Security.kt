@@ -1,4 +1,4 @@
-package com.example.plugins
+package com.example. plugins
 
 import io.ktor.server.auth.*
 import io.ktor.util.*
@@ -27,12 +27,21 @@ fun Application.configureSecurity() {
 					val curPass = credentials.password
 
 					val curUserName: User? = colUser.findOne(User::name eq curName)
-					val curUserPass: User? = colUser.findOne(User::pass eq curPass)
 
-    				if (curUserName != null && curUserPass != null) {
-    					UserIdPrincipal(credentials.name)
+
+    				if (curUserName == null ) {
+						null
     				} else {
-    					null
+						val curUserPass: User? = colUser.findOne(User::pass eq curPass)
+
+						if (curUserName.name == curName && curUserPass!!.pass == curPass) {
+							
+							UserIdPrincipal(credentials.name)
+
+						} else {
+
+							null
+						}
     				}
     			}
     		}

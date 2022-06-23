@@ -1,20 +1,27 @@
 package com.example.plugins
 
 //import com.mongodb.client.FindIterable
-import io.ktor.server.routing.*
+import com.google.gson.Gson
+import com.google.gson.JsonParser
 import io.ktor.http.*
 import io.ktor.server.application.*
-import io.ktor.server.response.*
 import io.ktor.server.request.*
+import io.ktor.server.response.*
+import io.ktor.server.routing.*
 import org.litote.kmongo.*
+import java.io.BufferedReader
+import java.io.FileOutputStream
+import java.io.InputStreamReader
 
 //Data class for boards
 data class Boards(val name:String,val FBQN:String )
+
 //Data class for arduino info
 data class Arduino(val address: String, val Protocol:String, val protocol_label:String,val boards: Array<Boards> )
 
 data class User(val name:String, val pass: String, val _id:String?=null)
-data class File(val name:String, val fileContent:String, val _id:String?=null, val owner:String?=null)
+
+data class File(val name:String, val fileContent:String, val owner:String?, val _id:String?=null)
 
 const val imadDB="imad-db-1-2022"
 
@@ -66,10 +73,10 @@ fun Application.configureRouting() {
 
             val parameters:Parameters = call.receiveParameters()
 
-            val userID = call.parameters["UserID"]
-            val fileName = parameters["file"]!!
+            //val userID = call.parameters["UserID"]
+            val fileName = parameters["fileName"]!!
             val currId = call.request.queryParameters["auth"]
-
+            //val userID=currId
             val client = KMongo.createClient() //get com.mongodb.MongoClient new instance
             val database = client.getDatabase(imadDB) //normal java driver usage
             val colFile = database.getCollection<File>() //KMongo extension method
@@ -87,7 +94,7 @@ fun Application.configureRouting() {
                 val curFile : File? = colFile.findOne(File::name eq fileName)
 
                 if (curFile == null){
-                    val insertFile=File(fileName, fileContent = "",owner = userID)
+                    val insertFile=File(fileName, fileContent = "", owner = currId)
                     colFile.insertOne(insertFile)
                     call.respondText( insertFile._id!! ,contentType=ContentType.Text.Plain )
                     client.close()
@@ -105,11 +112,11 @@ fun Application.configureRouting() {
 
             val parameters:Parameters = call.receiveParameters()
 
-            val userID = call.parameters["UserID"]
+            //val userID = call.parameters["UserID"]
             val fileID = call.parameters["fileID"]
             val currId = call.request.queryParameters["auth"]
 
-            val contents = parameters["fileContents"]!!
+            val contents: String = parameters["fileContents"]!!
 
             val client = KMongo.createClient() //get com.mongodb.MongoClient new instance
             val database = client.getDatabase(imadDB) //normal java driver usage
@@ -135,17 +142,17 @@ fun Application.configureRouting() {
                 }
 
                 else{
-                    
+
                     //Verificamos si el archivo le pertenece al usuario
-                    
+
                     if (curFile.owner == currUser._id) {
 
-                        val editFile = File(fileID.toString(), contents)
+                        //val editFile = File(fileID.toString(), contents,owner = currUser.toString())
                         colFile.updateOne(File::_id eq fileID, set(curFile::fileContent setTo contents))
                         client.close()
-                    
+
                         //Sends user ID (API key) to client
-                        call.respondText(editFile._id!!, contentType = ContentType.Text.Plain)
+                        //call.respondText(editFile._id!!, contentType = ContentType.Text.Plain)
                         call.respondText("OK", contentType = ContentType.Text.Plain)
                     }
                     else{
@@ -155,11 +162,10 @@ fun Application.configureRouting() {
             }
         }
 
-        get ("/files/{fileID}") {
+        get ("/file/{fileID}") {
 
-            val parameters:Parameters = call.receiveParameters()
+            //val parameters:Parameters = call.receiveParameters()
 
-            val userID = call.parameters["UserID"]
             val fileID = call.parameters["fileID"]
             val currId = call.request.queryParameters["auth"]
 
@@ -179,7 +185,7 @@ fun Application.configureRouting() {
 
             }
             else{
-                
+
                 //Verificamos que el archivo existe
                 val curFile: File? = colFile.findOne(File:: _id eq fileID)
 
@@ -188,45 +194,54 @@ fun Application.configureRouting() {
                     client.close()
                 }
                 else{
-                    
+
                     //Verificamos que el archivo pertenezca al usuario
-                    
+
                     if (curFile.owner == currUser._id) {
                         call.respondText(curFile.fileContent, contentType = ContentType.Text.Plain)
-                        client.close() 
+                        client.close()
                     }
                     else{
                             call.respondText("Wrong file", contentType = ContentType.Text.Plain)
                             client.close()
                     }
-                    
                 }
             }
         }
 
-        get("/files/{UserID}"){
+        get("/files"){
 
-            val userId = call.parameters["UserID"]
+            //val parameters:Parameters = call.receiveParameters()
+            val currId = call.request.queryParameters["auth"]
 
             val client = KMongo.createClient() //get com.mongodb.MongoClient new instance
             val database = client.getDatabase(imadDB) //normal java driver usage
             val colFile = database.getCollection<File>() //KMongo extension method
+            val colUser = database.getCollection<User>()
 
             //val curFile: MutableList<File> = colFile.find(File::owner eq userId).toMutableList()
             //val curFile: Iterable<File> = colFile.find(File::owner eq userId).toMutableList()
-            val listOfFiles = colFile.find(File:: owner eq userId).toMutableList()
 
-            if (listOfFiles != null){
+            val currUser : User? = colUser.findOne(User::_id eq currId)
 
-                call.respondText(curFile.toString(), contentType = ContentType.Text.Plain)
-
+            if(currUser== null)
+            {
+                client.close()
             }
+            else {
+                val listOfFiles = colFile.find(File::owner eq currId).toMutableList()
+                //val name = call.request.queryParameters["fileName"]
+                //val myObjG = JsonParser.parseString(listOfFiles.toString()).asJsonObject
+                //val name = myObjG["name"].asString.toDouble()
+                //val content = call.request.queryParameters["fileContent"]
 
-            else{
-                
-                call.respondText("There arent files owned by this user", contentType = ContentType.Text.Plain)
+                if (listOfFiles == null) {
+                    call.respondText("There arent files owned by this user", contentType = ContentType.Text.Plain)
+                    //call.respondText(curFile.toString(), contentType = ContentType.Text.Plain)
+                } else {
+                    call.respond(mapOf("Lista" to listOfFiles))
+                }
             }
-
         }
 
         get("/flash/file/{fileid}") {
@@ -288,15 +303,15 @@ fun Application.configureRouting() {
                             ProcessBuilder("arduino-cli", "board", "list", "--format","json").start()
                         var stdout=process.inputStream
 
-                        var isstdout=InputStreamReader(stdout)
+                        var isstdout= InputStreamReader(stdout)
 
-                        var brstdout=BufferedReader(isstdout)
+                        var brstdout= BufferedReader(isstdout)
 
                         process.waitFor()
 
                         var response=brstdout.readText()
 
-                        val obj=Gson().fromJson(response,Array<Arduino>::class.java)
+                        val obj= Gson().fromJson(response,Array<Arduino>::class.java)
 
                         val arduino=obj.filter { it ->
                             if(it.boards!=null) {
@@ -343,13 +358,15 @@ fun Application.configureRouting() {
 
                     }
 
-
                 }
 
             }
 
-
         }
         
     }
+
 }
+
+
+
